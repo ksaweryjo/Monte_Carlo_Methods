@@ -1,0 +1,476 @@
+---
+title: "Metody Monte Carlo"
+author: "Ksawery Józefowski"
+subtitle: Raport nr 1
+output:
+  pdf_document:
+    extra_dependencies: float
+  html_document:
+    df_print: paged
+fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(ggplot2)
+library(xtable)
+library(gridExtra)
+library(latex2exp)
+knitr::opts_chunk$set(fig.align='center', fig.pos='H')
+```
+
+## Zadanie 1: Symulacja dyskretnych zmiennych losowych (3 pkt)
+
+1. Napisz funkcję realizującą generator liczb losowych o rozkładzie dwupunktowym: $\mathbb P(X=1)=p$, $\mathbb P(X=0)=1-p$, gdzie $p\in [0,1]$.
+
+2. Napisz funkcję realizującą generator liczb losowych z rozkładu dwumianowego. Narysuj histogram dla przykładowej próby z tego rozkładu.
+
+3. Napisz funkcję realizującą generator dla rozkładu Poissona (w raporcie zawrzyj obliczenia przygotowawcze). Narysuj histogram dla przykładowej próby z tego rozkładu.
+
+## Rozwiązanie
+
+W celu generowania próbek z rozkładu dwupunktowego wykorzystujemy metodę odwrotnej dystrybuanty. Dla tego rozkładu dystrybuanta przyjmuje postać skokową, co pozwala na prostą implementację funkcji kwantylowej:
+$$
+F_X^{-1}(u) = 
+\begin{cases}
+1 & \text{dla } 0 \leq u \leq p \\
+0 & \text{dla } p < u \leq 1
+\end{cases}
+$$
+```{r}
+dwupunktowy <- function(n, p) {
+  u <- runif(n)
+  x <- ifelse(u <= p, 1, 0)
+  return(x)
+}
+```
+Dla rozkładu dwumianowego wykorzystujemy fakt, że można go przedstawić jako sumę $n$ niezależnych zmiennych o rozkładzie dwupunktowym:
+$$
+X = \sum_{i=1}^n X_i,\quad X_i \sim Dwupunktowy(p)
+$$
+```{r}
+dwumianowy <- function(n, k, p) {
+  wyniki <- numeric(n)
+  for(i in 1:n) {
+    wyniki[i] <- sum(dwupunktowy(k, p))
+  }
+  return(wyniki)
+}
+```
+\newpage
+Rozważamy zmienną losową $X$ o rozkładzie Poissona z parametrem $\lambda > 0$, której funkcja prawdopodobieństwa jest dana wzorem:
+$$
+P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}, \quad k = 0,1,2,\dots
+$$
+Dystrybuanta $F(k)$ to suma prawdopodobieństw od 0 do $k$:
+$$
+F(k) = P(X \le k) = \sum_{i=0}^{k} \frac{\lambda^i e^{-\lambda}}{i!}
+$$
+Dla rozkładów dyskretnych dystrybuanta odwrotna $F^{-1}(u)$ jest zdefiniowana jako najmniejsza liczba całkowita $k$ spełniająca warunek:
+$$
+F(k) \ge u, \quad 0 < u < 1
+$$
+Końcowo funkcja kwantylowa wygląda następująco:
+$$
+F^{-1}(u) = \min \{ k \in \mathbb{Z}_{\ge 0} : F(k) \ge u \}
+$$
+My zastosujemy wzoru rekurencyjnego, aby nie liczyć dźwigni i zoptymalizować działanie funkcji:
+$$P(X = k) = P(X = k-1)\,\frac{\lambda}{k}$$
+```{r}
+poisson <- function(n, lambda) {
+  wyniki <- numeric(n)
+  for(j in 1:n) {
+    U <- runif(1)
+    k <- 0
+    F_k <- exp(-lambda)
+    S <- F_k
+    while(S < U) {
+      k <- k + 1
+      F_k <- F_k * lambda / k
+      S <- S + F_k
+    }
+    wyniki[j] <- k
+  }
+  return(wyniki)
+}
+```
+Przedstawiamy teraz wyniki dla rozkładu dwumianowego i Poissona odpowiednio na wykresach \ref{fig:fig1} i \ref{fig:Wykres2}. Zauważmy, że wykresy pokrywają się z oczekiwanymi wykresami rozkładów prawdopodobieństwa.
+```{r zWykres1, fig.cap="\\label{fig:fig1}Wykres rozkładu dwumianowego dla $p=0.4$", fig.align='center', echo=FALSE}
+dwumianowy_A <- dwumianowy(10000, 10, 0.4)
+hist(dwumianowy_A, breaks = seq(-0.5, 10.5, 1),
+     main = "",
+     xlab = "k", ylab = "n",
+     col = "lightblue")
+```
+
+```{r zWykres2, fig.cap="\\label{fig:Wykres2}Wykres rozkładu Poissona dla $\\lambda = 3.5$", fig.align='center', echo=FALSE}
+poisson_A <- poisson(10000, 3.5)
+hist(poisson_A, breaks = seq(-0.5, max(poisson_A)+0.5, 1),
+     main = "",
+     xlab = "k", ylab = "n",
+     col = "lightgreen")
+
+par(mfrow = c(1, 1))
+```
+\newpage
+
+## Zadanie 2: Symulacja ciągłych zmiennych losowych (4 pkt)
+
+1. Zaimplementuj omówiony na wykładzie generator rozkładu wykładniczego. Narysuj histogram dla próby o rozmiarze $n=2000$ wygenerowanej przy jego pomocy i nałóż na niego krzywą gęstości rozkładu wykładniczego.
+2. Wyznacz dystrybuantę odwrotną dla rozkładu Weibulla o funkcji gęstości $$f(x)=\frac{k}{\lambda^k}x^{k-1}e^{-(x/\lambda)^k}\mathbf{1}_{(0,+\infty)}(x),\quad x\in \mathbb{R},$$ gdzie $k>0$, $\lambda>0$ (w raporcie zawrzyj odpowiednie obliczenia). Wykorzystaj ją do napisania funkcji realizującej generator liczb losowych z rozkładu Weibulla. Narysuj histogram dla próby o rozmiarze $n=2000$ wygenerowanej przy jego pomocy i nałóż na niego krzywą gęstości rozkładu Weibulla.
+3. Napisz funkcję realizującą generator liczb losowych z rozkładu Laplace'a z parametrem $\lambda>0$ o gęstości:
+$$f(x)=\frac{\lambda}{2}e^{-\lambda|x|},\quad x\in\mathbb R.$$
+Narysuj histogram dla próby o rozmiarze $n=2000$ wygenerowanej przy jego pomocy i nałóż na niego krzywą gęstości rozkładu Laplace'a.
+
+## Rozwiązanie
+Zmienną losową o rozkładzie wykładniczym generujemy metodą odwrotnej dystrybuanty.
+Dla rozkładu wykładniczego o parametrze $\lambda>0$ dystrybuanta ma postać:
+$$F(x) = 1 - e^{-\lambda x}$$
+Odwracając ją otrzymujemy funkcję kwantylową o postaci:
+$$
+F(x)^{-1} = -\frac{1}{\lambda} \ln(1 - u)
+$$
+```{r}
+wykladniczy <- function(n, lambda) {
+  u <- runif(n)
+  x <- -log(1 - u) / lambda
+  return(x)
+}
+```
+Chcemy wyznaczy dystrybuantę odwrotną rozkłądu Weibulla, więc najpierw wyliczamy dystrybuantę z podanej gęstości:
+$$
+F(x) = \int_0^x f(t) \, dt = \int_0^x \frac{k}{\lambda^k} t^{k-1} e^{-(t/\lambda)^k} dt
+$$
+
+Po obliczeniu całki wychodzi:
+$$
+F(x) = 1 - e^{-(x/\lambda)^k}, \quad x \ge 0
+$$
+Aby znaleźć funkcję odwrotną $F^{-1}(u)$, przyjmujemy $u = F(x)$:
+$$
+u = 1 - e^{-(x/\lambda)^k}
+$$
+Rozwiązujemy równanie względem $x$:
+$$
+e^{-(x/\lambda)^k} = 1 - u
+$$
+
+$$
+-(x/\lambda)^k = \ln(1-u)
+$$
+
+$$
+x^k = -\lambda^k \ln(1-u)
+$$
+
+$$
+x = \lambda (-\ln(1-u))^{1/k}
+$$
+Stąd dystrybuanta odwrotna ma postać:
+$$
+F^{-1}(u) = \lambda \, (-\ln(1-u))^{1/k}, \quad 0 < u < 1
+$$
+
+```{r}
+weibull <- function(n, k, lambda) {
+  u <- runif(n)
+  x <- lambda * (-log(1 - u))^(1/k)
+  return(x)
+}
+```
+Dla rozkładu Laplace'a korzystamy z dystrybuanty odwrotnej o wzorze:
+$$
+F^{-1}(u) = 
+\begin{cases}
+\frac{1}{\lambda}\ln(2u) & \text{dla } 0 < u < \frac{1}{2} \\
+-\frac{1}{\lambda}\ln(2(1-u)) & \text{dla } \frac{1}{2} \leq u < 1
+\end{cases}
+$$
+```{r}
+laplace <- function(n, lambda) {
+  u <- runif(n)
+  x <- numeric(n)
+  idx_l <- which(u < 0.5)
+  idx_up <- which(u >= 0.5)
+  x[idx_l] <- log(2 * u[idx_l]) / lambda
+  x[idx_up] <- -log(2 * (1 - u[idx_up])) / lambda
+  return(x)
+}
+```
+Wyniki symulacji dla $n=2000$ z porównaniem do krzywej gęstości rozkładów przedstawiamy poniżej odpowiednio na histogramach \ref{fig:Wykres3}, \ref{fig:Wykres4} i \ref{fig:Wykres5}:
+```{r, echo=FALSE}
+n <- 2000
+lambda_exp <- 0.5
+k_weibull <- 2
+lambda_weibull <- 1.5
+lambda_laplace <- 1
+
+wykladniczy_A <- wykladniczy(n, lambda_exp)
+weibull_A <- weibull(n, k_weibull, lambda_weibull)
+laplace_A <- laplace(n, lambda_laplace)
+```
+
+```{r zWykres3, fig.cap="\\label{fig:Wykres3}Wykres rozkładu wykładniczego dla $\\lambda=0.5$", fig.align='center', echo=FALSE}
+hist(wykladniczy_A, breaks = 30, probability = TRUE, 
+     main = "",
+     xlab = "x", ylab = "Gęstość", col = "lightblue")
+curve(dexp(x, lambda_exp), add = TRUE, col = "red", lwd = 2)
+```
+
+```{r zWykres4, fig.cap="\\label{fig:Wykres4}Wykres rozkładu Weibull'a dla $\\lambda=1.5$", fig.align='center', echo=FALSE}
+hist(weibull_A, breaks = 30, probability = TRUE, 
+     main = "",
+     xlab = "x", ylab = "Gęstość", col = "lightgreen")
+curve(dweibull(x, k_weibull, lambda_weibull), add = TRUE, col = "red", lwd = 2)
+```
+
+```{r zWykres5, fig.cap="\\label{fig:Wykres5}Wykres rozkładu Laplace'a dla $\\lambda=1$", fig.align='center', echo=FALSE}
+hist(laplace_A, breaks = 30, probability = TRUE, 
+     main = "",
+     xlab = "x", ylab = "Gęstość", col = "lightcoral", xlim = c(-5, 5))
+curve(0.5 * lambda_laplace * exp(-lambda_laplace * abs(x)), 
+      add = TRUE, col = "red", lwd = 2)
+```
+\newpage
+
+## Zadanie 3: Generowanie rozkładu normalnego metodą Boxa-Müllera (4 pkt)
+
+Jak wiadomo z wykładu, jeżeli $U_1,U_2$ są dwiema niezależnymi zmiennymi z rozkładu jednostajnego na $[0,1]$, to zmienne 
+$$
+X_1:=\sqrt{-2\ln(U_2)}\cos(2\pi U_1), \,\,\, X_2:=\sqrt{-2\ln(U_2)}\sin(2\pi U_1),
+$$
+są dwiema niezależnymi zmiennymi o standardowym rozkładzie normalnym.
+
+1. Napisz funkcję realizującą generator par liczb losowych z rozkładu normalnego (dla zadanych parametrów $\mu$ i $\sigma$) wykorzystujący powyższą transformację Box-M\"ullera
+
+2. Narysuj histogram z nałożoną odpowiednią funkcją gęstości dla próby rozmiaru $n=5000$ wygenerowanej przy pomocy napisanego generatora.
+
+3. Wygeneruj $2000$ realizacji par $(X_1,X_2)$. Wykorzystaj funkcję
+```{r zad4func, echo=TRUE}
+jointplot <- function(x,y){
+  df <- data.frame(x,y)
+  scatter <- ggplot(df, aes(x=x,y=y))+geom_bin2d() +
+    scale_fill_continuous(type = "viridis") +
+    theme_bw()
+  hist_right <- ggplot(df)+geom_histogram(aes(y), fill="#69b3a2", 
+                                          color='darkblue')+
+    coord_flip()
+  hist_top <- ggplot(df)+geom_histogram(aes(x), fill="#69b3a2",
+                                        color='darkblue')
+  
+  grid.arrange(hist_top, scatter, hist_right, ncol=2, nrow=2,
+               widths=c(4, 1), heights=c(1, 4),
+               layout_matrix = rbind(c(1, NA), c(2,3)))}
+```
+by narysować wykresy łączne rozkładów realizacji par zmiennych:
+
+* $X_1$ i $X_2$,
+* $X_1$, $X_1+X_2$,
+* $X_1+X_2$, $X_1-X_2$.
+
+4. W każdym z powyższych (trzech) przypadków, oblicz korelacje realizacji obu zmiennych. Czy współrzędne są od siebie niezależne? Wytłumacz.
+
+\newpage
+## Rozwiązanie:
+Funkcja `box_muller_generator` implementuje transformację Boxa-Mullera, która pozwala generować liczby z rozkładu normalnego na podstawie zmiennych z rozkładu jednostajnego. Przyjmuje trzy parametry:
+
+* $\mu$ – wartość oczekiwana rozkładu 
+* $\sigma$ – odchylenie standardowe
+* $n$ – liczba generowanych wartości  
+
+Algorytm działa poprzez generowanie par niezależnych zmiennych z rozkładu jednostajnego, które następnie są transformowane do rozkładu normalnego przy użyciu funkcji trygonometrycznych i logarytmicznych:
+$$
+R = \sqrt{-2 \ln U_2}, \quad \theta = 2 \pi U_1 \newline
+$$
+$$
+X_1 = R\cos{\theta}, X_2 = R\sin{\theta}
+$$
+Końcowo wartości są skalowane zgodnie z $\mu$ i $\sigma$:
+$$ X = \sigma \cdot X_i + \mu$$
+
+```{r}
+box_muller_generator <- function(n, mu = 0, sigma = 1) {
+  m <- ceiling(n/2) * 2
+  U1 <- runif(m/2)
+  U2 <- runif(m/2)
+  
+  R <- sqrt(-2 * log(U2))
+  theta <- 2 * pi * U1
+  
+  X1 <- R * cos(theta)
+  X2 <- R * sin(theta)
+  
+  result <- c(X1, X2) * sigma + mu
+  return(result[1:n])
+}
+```
+Poniżej przedstawiamy wykres \ref{fig:Wykres6} wygenerowany poprzez transformację Box-M\"ullera dla $n=5000$ prób losowych z rozkładu normalnego o parametrach $\mu = 2$ i $\sigma = 3$. Czerwona linia przedstawia funkcję gęstości wspomnianego rozkładu. Jak widać na histogramie, napisany generator bardzo dobrze dopasowuje się do krzywej gęstości.
+```{r zWykres6, fig.cap="\\label{fig:Wykres6}Wykres rozkładu normalnego generowany Box'em-Muller'em", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(37)
+n <- 5000
+mu <- 2
+sigma <- 3
+
+data <- box_muller_generator(n, mu, sigma)
+df <- data.frame(x = data)
+
+ggplot(df, aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, 
+                 fill = "lightblue", 
+                 color = "black", 
+                 alpha = 0.7) +
+  stat_function(fun = dnorm, 
+                args = list(mean = mu, sd = sigma),
+                color = "red", 
+                linewidth = 1) +
+  labs(title = "",
+       x = "x", 
+       y = "Gęstość") +
+  theme_minimal()
+```
+
+Generujemy $n = 2000$ realizacji par. Następnie wykorzystujemy podaną funkcję do generowania wykresów \ref{fig:Wykres7}, \ref{fig:Wykres8} i \ref{fig:Wykres9} odpowiednio dla par $(X_1, X_2)$, $(X_1, X_1 + X_2)$, $(X_1 + X_2, X_1 - X_2)$
+\newline
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+set.seed(37)
+n_pairs <- 2000
+
+data <- box_muller_generator(2 * n_pairs)
+X1 <- data[1:n_pairs]
+X2 <- data[(n_pairs + 1):(2 * n_pairs)]
+
+jointplot <- function(x, y){
+  df <- data.frame(x, y)
+  scatter <- ggplot(df, aes(x = x, y = y)) + 
+    geom_bin2d() +
+    scale_fill_continuous(type = "viridis") +
+    theme_bw()
+  hist_right <- ggplot(df) + geom_histogram(aes(y), fill = "#69b3a2", color = 'darkblue') + coord_flip()
+  hist_top <- ggplot(df) + geom_histogram(aes(x), fill = "#69b3a2", color = 'darkblue')
+  grid.arrange(hist_top, scatter, hist_right, ncol = 2, nrow = 2,
+               widths = c(4, 1), heights = c(1, 4),
+               layout_matrix = rbind(c(1, NA), c(2, 3)))
+}
+```
+```{r zWykres7, fig.cap="\\label{fig:Wykres7}Symulacja dla $X_1, X_2$", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+jointplot(X1, X2)
+```
+```{r zWykres8, fig.cap="\\label{fig:Wykres8}Symulacja dla $X_1, X_1 + X_2$", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+jointplot(X1, X1 + X2)
+```
+```{r zWykres9, fig.cap="\\label{fig:Wykres9}Symulacja dla $X_1 + X_2, X_1 - X_2$", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+jointplot(X1 + X2, X1 - X2)
+```
+Korelacje między zmiennymi: \newline
+Para$(X_1, X_2)$:
+```{r}
+cor(X1, X2)
+```
+Korelacja pierwszej pary jest bardzo bliska zeru, więc zmienne $X_1, X_2$ są niezależne. Wynika to bezpośrednio z metody Boxa-Mullera, która generuje niezależne zmienne losowe. \newline
+
+Para$(X_1, X_1 + X_2)$:
+```{r}
+cor(X1, X1 + X2)
+```
+Dla drugiej pary korelacja jest w wysokich dodatnich wartościach ($0.7$), więc $X_1, X_1 + X_2$ są zależne. Staje się tak ponieważ kombinacja liniowa wprowadza "szum", który skutkuje w zależności zmiennych. \newline
+
+Para$(X_1 + X_2, X_1 - X_2)$:
+```{r}
+cor(X1 + X2, X1 - X2)
+```
+Trzecia para wykazuje korelacje bliską zeru co wskazuje na niezależność zmiennych losowych, a jest to prawdą z racji ortogonalności kombinacji liniowych $X_1 + X_2$ i $X_1 - X_2$.
+
+\newpage
+## Zad. 4. Metoda akceptacji (3 pkt)
+
+1. Zaproponuj alternatywny sposób generowania prób z rozkładu normalnego oparty na metodzie akceptacji. Jako rozkład majoryzujący rozkład normalny wybierz rozkład Laplace'a i wykorzystaj generator napisany w zadaniu 2.3. Spróbuj wyznaczyć wartości stałej normującej $M$ oraz parametru $\lambda$ rozkładu Laplace'a, tak by możliwie zminimalizować liczbę odrzucanych próbek. 
+2. Porównaj czas generowania próby o rozmiarze $n=10000$ za pomocą napisanego generatora oraz generatora wykorzystującego transformację Boxa-Müllera z zadania 3.
+
+## Rozwiązanie:
+Krok 1:
+
+Niech
+
+- Rozkład docelowy: $N(0,1)$ z gęstością $f(x) = \dfrac{1}{\sqrt{2\pi}}e^{-x^2/2}$
+- Rozkład pomocniczy: Laplace'a z gęstością $g(x) = \dfrac{\lambda}{2}e^{-\lambda|x|}$
+
+Wyznaczamy stałą $M$ taką, że $f(x) \leq M \cdot g(x)$ dla wszystkich $x \in \mathbb{R}$.
+
+Krok 2:
+
+Stosunek gęstości:
+$$
+\frac{f(x)}{g(x)} = \frac{\dfrac{1}{\sqrt{2\pi}}e^{-x^2/2}}{\dfrac{\lambda}{2}e^{-\lambda|x|}} = \frac{2}{\lambda\sqrt{2\pi}}e^{-x^2/2 + \lambda|x|}
+$$
+Maksimum funkcji $h(x) = -\dfrac{x^2}{2} + \lambda |x|$ otrzymujemy dla:
+$$
+h'(x) = -x + \lambda = 0 \implies x = \lambda
+$$
+Podstawiając:
+$$
+M = \sup_x \frac{f(x)}{g(x)} = \frac{2}{\lambda\sqrt{2\pi}}e^{-\lambda^2/2 + \lambda^2} = \frac{2}{\lambda\sqrt{2\pi}}e^{\lambda^2/2}
+$$
+
+Aby zminimalizować prawdopodobieństwo odrzucenia, minimalizujemy $M$ względem $\lambda$:
+
+$$
+\frac{dM}{d\lambda} = \frac{2}{\sqrt{2\pi}}\left(-\frac{1}{\lambda^2}e^{\lambda^2/2} + \frac{1}{\lambda}\cdot\lambda e^{\lambda^2/2}\right) = 0
+$$
+
+Rozwiązanie to $\lambda = 1$
+Zatem optymalny parametr to $\lambda = 1$
+Optymalna stała normująca:
+$$
+M = \frac{2}{1\cdot\sqrt{2\pi}}e^{1/2} = \sqrt{\frac{2e}{\pi}} \approx 1.315
+$$
+
+Algorytm na, którym bazować będzie kod wygląda następująco:
+
+1. Wygeneruj $X$ z rozkładu Laplace'a z parametrem $\lambda = 1$
+2. Wygeneruj $U \sim U(0,1)$
+3. Jeśli
+   $$
+   U \leq \frac{f(x)}{M \cdot g(x)} = \frac{1}{M} \cdot \frac{f(x)}{g(x)} = \frac{1}{M} \cdot \frac{2}{\sqrt{2\pi}} e^{-x^2/2 + |x|}
+   $$
+   to zaakceptuj $X$, w przeciwnym razie odrzuć i powtórz.
+
+W ten sposób uzyskane wartości będą pochodziły z rozkładu normalnego $N(0,1)$.
+```{r}
+normal_accept <- function(n, lambda=1) {
+  M <- (2 / (lambda * sqrt(2 * pi))) * exp(lambda^2 / 2)
+  results <- numeric(0)
+  count <- 0
+  
+  while(length(results) < n) {
+    x <- laplace(1, lambda)
+    u <- runif(1)
+    
+    f <- (1 / sqrt(2 * pi)) * exp(-x^2 / 2)
+    g <- (lambda / 2) * exp(-lambda * abs(x))
+    count <- count + 1
+    
+    if (u <= f / (M * g)) {
+      results <- c(results, x)
+    }
+  }
+  
+  return(results)
+}
+```
+```{r}
+set.seed(37)
+system.time({x_accept <- normal_accept(10000, lambda = 1)})
+system.time({x_box <- box_muller_generator(10000)})
+```
+Pomiar czasu wykonania pokazał, że metoda Boxa–Müllera jest zdecydowanie szybsza od metody akceptacji. W przypadku próby o rozmiarze $n=10000$ metoda akceptacji zajmuje średnio około 0,30 sekundy, podczas gdy metoda Boxa–Müllera była tak szybka, że czas jej wykonania został zarejestrowany jako zero, co wynika jedynie z ograniczonej dokładności funkcji `system.time()` dla bardzo krótkich operacji. Różnica ta jest naturalna, ponieważ metoda akceptacji wymaga generowania dodatkowych wartości, które są odrzucane, aby uzyskać próbkę zgodną z rozkładem normalnym, natomiast metoda Boxa–Müllera każdorazowo generuje dwie poprawne wartości bez żadnych odrzuceń. Pomimo tej różnicy w czasie wykonania, obie metody generują próbki o rozkładzie dobrze przybliżającym rozkład normalny, co możemy zauważyć na wykresach \ref{fig:Wykres10} i \ref{fig:Wykres11} poniżej:
+```{r zWykres10, fig.cap="\\label{fig:Wykres10}Metoda Akceptacji", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+hist(x_accept, breaks = 30, col = "lightblue", freq = FALSE, probability = TRUE,
+  main = "", xlab = "x", xlim=c(-4,4))
+  curve(dnorm(x), add = TRUE, col = "red", lwd = 2)
+```
+```{r zWykres11, fig.cap="\\label{fig:Wykres11}Metoda Box'a-Muller'a", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+hist(x_box, breaks = 30, col = "lightgreen", freq = FALSE,  probability = TRUE,
+  main = "", xlab = "x", xlim=c(-4,4))
+  curve(dnorm(x), add = TRUE, col = "red", lwd = 2)
+```
