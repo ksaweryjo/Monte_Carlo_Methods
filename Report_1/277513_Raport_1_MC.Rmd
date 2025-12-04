@@ -64,7 +64,7 @@ P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}, \quad k = 0,1,2,\dots
 $$
 Dystrybuanta $F(k)$ to suma prawdopodobieństw od 0 do $k$:
 $$
-F(k) = P(X \le k) = \sum_{i=0}^{k} \frac{\lambda^i e^{-\lambda}}{i!}
+F(k) = P(X \le k) = \sum_{i=0}^{\lfloor k \rfloor} \frac{\lambda^i e^{-\lambda}}{i!}
 $$
 Dla rozkładów dyskretnych dystrybuanta odwrotna $F^{-1}(u)$ jest zdefiniowana jako najmniejsza liczba całkowita $k$ spełniająca warunek:
 $$
@@ -94,7 +94,17 @@ poisson <- function(n, lambda) {
   return(wyniki)
 }
 ```
-Przedstawiamy teraz wyniki dla rozkładu dwumianowego i Poissona odpowiednio na wykresach \ref{fig:fig1} i \ref{fig:Wykres2}. Zauważmy, że wykresy pokrywają się z oczekiwanymi wykresami rozkładów prawdopodobieństwa.
+Przedstawiamy teraz wyniki dla rozkładu dwupunktowego dwumianowego i Poissona odpowiednio na wykresach \ref{fig:fig0}, \ref{fig:fig1} i \ref{fig:Wykres2}. Zauważmy, że wykresy pokrywają się z oczekiwanymi wykresami rozkładów prawdopodobieństwa.
+```{r zWykres0, fig.cap="\\label{fig:fig0}Wykres rozkładu dwupunktowego dla $p=0.3$", fig.align='center', echo=FALSE}
+dwupunkt_A <- dwupunktowy(10000, 0.3)
+hist(dwupunkt_A, breaks = seq(-0.5, 1.5, 1),
+     xaxt = "n",
+     main = "",
+     xlab = "k", ylab = "n",
+     col = "lightblue")
+axis(1, at = c(0, 1), labels = c("0", "1"))
+```
+
 ```{r zWykres1, fig.cap="\\label{fig:fig1}Wykres rozkładu dwumianowego dla $p=0.4$", fig.align='center', echo=FALSE}
 dwumianowy_A <- dwumianowy(10000, 10, 0.4)
 hist(dwumianowy_A, breaks = seq(-0.5, 10.5, 1),
@@ -364,22 +374,25 @@ jointplot(X1 + X2, X1 - X2)
 ```
 Korelacje między zmiennymi: \newline
 Para$(X_1, X_2)$:
-```{r}
+```{r, results='hide'}
 cor(X1, X2)
 ```
-Korelacja pierwszej pary jest bardzo bliska zeru, więc zmienne $X_1, X_2$ są niezależne. Wynika to bezpośrednio z metody Boxa-Mullera, która generuje niezależne zmienne losowe. \newline
+Korelacja: `r cor(X1, X2)` \newline
+Korelacja pierwszej pary jest bardzo bliska zeru. Niezależność pary $X_1, X_2$ wynika bezpośrednio z metody Boxa-Mullera, która generuje niezależne zmienne losowe. \newline
 
 Para$(X_1, X_1 + X_2)$:
-```{r}
+```{r, results='hide'}
 cor(X1, X1 + X2)
 ```
-Dla drugiej pary korelacja jest w wysokich dodatnich wartościach ($0.7$), więc $X_1, X_1 + X_2$ są zależne. Staje się tak ponieważ kombinacja liniowa wprowadza "szum", który skutkuje w zależności zmiennych. \newline
+Korelacja: `r cor(X1, X1 + X2)` \newline
+Dla drugiej pary korelacja jest w wysokich dodatnich wartościach ($0.7$). Zmienne losowe $X_1, X_1 + X_2$ są zależne. Jest tak, ponieważ jeśli jedna zmienna jest liniową funkcją drugiej, to te zmienne są zależne. \newline
 
 Para$(X_1 + X_2, X_1 - X_2)$:
-```{r}
+```{r, results='hide'}
 cor(X1 + X2, X1 - X2)
 ```
-Trzecia para wykazuje korelacje bliską zeru co wskazuje na niezależność zmiennych losowych, a jest to prawdą z racji ortogonalności kombinacji liniowych $X_1 + X_2$ i $X_1 - X_2$.
+Korelacja: `r cor(X1 + X2, X1 - X2)` \newline
+Trzecia para wykazuje korelacje bliską zeru co wskazuje na niezależność zmiennych losowych, a jest to prawdą, ponieważ zmienne losowe $X1, X2$ są niezależne i mają rozkład normalny, więc kombinacje liniowe $X_1 + X_2$ i $X_1 - X_2$ mają wspólny rozkład normalny, a dla zmiennych o wspólnym rozkładzie normalnym zerowa korelacja oznacza niezależność.
 
 \newpage
 ## Zad. 4. Metoda akceptacji (3 pkt)
